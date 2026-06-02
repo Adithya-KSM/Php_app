@@ -2,7 +2,7 @@ FROM nginx:latest
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install packages
+# Install PHP and required extensions
 RUN apt-get update && apt-get install -y \
     php \
     php-fpm \
@@ -19,26 +19,34 @@ RUN apt-get update && apt-get install -y \
     curl \
     git \
     supervisor \
-    && apt-get clean
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Remove default nginx config
-RUN rm /etc/nginx/conf.d/default.conf
+# Remove default nginx site
+RUN rm -f /etc/nginx/conf.d/default.conf
 
-# Copy nginx config
+# Copy nginx configuration
 COPY nginx/default.conf /etc/nginx/conf.d/default.conf
 
-# Copy Laravel app
-COPY . /var/www/html
+# Copy Laravel application
+COPY laravel-app /var/www/html
 
 WORKDIR /var/www/html
 
 # Install Laravel dependencies
-RUN composer install --no-dev --optimize-autoloader
+RUN composer install \
+    --no-dev \
+    --optimize-autoloader \
+    --no-interaction \
+    --prefer-dist
 
-# Permissions
+# Remove old cache files
+RUN rm -rf bootstrap/cache/*.php
+
+# Set permissions
 RUN chown -R www-data:www-data /var/www/html \
     && chmod -R 775 storage bootstrap/cache
 
@@ -46,6 +54,10 @@ RUN chown -R www-data:www-data /var/www/html \
 COPY start.sh /start.sh
 
 RUN chmod +x /start.sh
+
+# Container health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost/health || exit 1
 
 EXPOSE 80
 
