@@ -32,7 +32,7 @@ RUN rm -f /etc/nginx/conf.d/default.conf
 COPY nginx/default.conf /etc/nginx/conf.d/default.conf
 
 # Copy Laravel application
-COPY laravel-app /var/www/html
+COPY . /var/www/html
 
 WORKDIR /var/www/html
 
