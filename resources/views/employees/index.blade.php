@@ -4,7 +4,7 @@
     <title>Employee Management</title>
 </head>
 <body>
-    <h2>Employee List</h2>
+    <h2>Employee List - Adithya Company</h2>
     
     @if(session('success'))
         <div style="color: green; margin-bottom: 15px;">{{ session('success') }}</div>
