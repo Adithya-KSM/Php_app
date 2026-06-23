@@ -1,26 +1,23 @@
 version: 0.2
-
 phases:
   pre_build:
     commands:
+      - echo Logging in to Docker Hub...
+      - echo $DOCKERHUB_PASSWORD | docker login --username $DOCKERHUB_USERNAME --password-stdin
       - echo Logging in to Amazon ECR...
       - aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin $REPOSITORY_URI
-
   build:
     commands:
       - echo Building Docker image...
       - docker build -t php-app .
       - echo Tagging image with the CodeBuild environment variable...
       - docker tag php-app:latest $REPOSITORY_URI:$IMAGE_TAG
-
   post_build:
     commands:
       - echo Pushing Docker image to ECR...
       - docker push $REPOSITORY_URI:$IMAGE_TAG
       - echo Writing imagedefinitions.json file for ECS...
-      # Using 'php-container' to perfectly match your ECS Task Definition
       - printf '[{"name":"php-container","imageUri":"%s"}]' "$REPOSITORY_URI:$IMAGE_TAG" > imagedefinitions.json
-
 artifacts:
   files:
     - imagedefinitions.json
