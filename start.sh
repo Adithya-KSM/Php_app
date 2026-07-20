@@ -20,6 +20,9 @@ for var in DB_CONNECTION DB_HOST DB_PORT DB_DATABASE DB_USERNAME DB_PASSWORD APP
     fi
 done
 
+# Force Laravel logging to write to file storage instead of stderr/stdout
+sed -i 's|^LOG_CHANNEL=.*|LOG_CHANNEL=single|' .env || echo "LOG_CHANNEL=single" >> .env
+
 # 2. Fail early if the core APP_KEY wasn't provided in the Task Definition
 if [ -z "${APP_KEY}" ]; then
     echo "CRITICAL ERROR: APP_KEY environment variable is missing from the ECS Task Definition!"
@@ -42,10 +45,17 @@ php artisan config:cache
 echo "Configuring PHP-FPM for network port mapping..."
 sed -i 's|listen = /run/php/php8.4-fpm.sock|listen = 127.0.0.1:9000|g' /etc/php/8.4/fpm/pool.d/www.conf
 
-# 6. Kickstart internal processing engines
+# 6. Start CloudWatch Agent in background mode
+echo "Starting CloudWatch Agent inside container..."
+/opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+    -a fetch-config \
+    -m ec2 \
+    -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json \
+    -s
+
+# 7. Kickstart internal processing engines
 echo "Starting application worker engines..."
 service php8.4-fpm start
 
 echo "Handing control over to Nginx..."
 nginx -g 'daemon off;'
-

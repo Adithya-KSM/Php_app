@@ -1,63 +1,50 @@
-FROM nginx:latest
+# Start from the official PHP-FPM base image for precise version control
+FROM php:8.3-fpm
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install PHP and required extensions
+# 1. Install Nginx, CloudWatch Agent, and system build tools
 RUN apt-get update && apt-get install -y \
-    php \
-    php-fpm \
-    php-mysql \
-    php-mbstring \
-    php-xml \
-    php-curl \
-    php-zip \
-    php-bcmath \
-    php-cli \
-    php-common \
-    php-opcache \
+    nginx \
     unzip \
     curl \
     git \
-    supervisor \
+    wget \
+    gnupg \
+    libpng-dev \
+    libonig-dev \
+    libxml2-dev \
+    zip \
+    && wget https://amazoncloudwatch-agent.s3.amazonaws.com/ubuntu/amd64/latest/amazon-cloudwatch-agent.deb \
+    && dpkg -i -E ./amazon-cloudwatch-agent.deb \
+    && rm -f ./amazon-cloudwatch-agent.deb \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Composer
+# 2. Install official PHP extensions safely
+RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd
+
+# 3. Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Remove default nginx site
-RUN rm -f /etc/nginx/conf.d/default.conf
-
-# Copy nginx configuration
+# 4. Copy configurations
+RUN rm -f /etc/nginx/sites-enabled/default
 COPY nginx/default.conf /etc/nginx/conf.d/default.conf
+COPY amazon-cloudwatch-agent.json /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
 
-# Copy Laravel application
+# 5. Set up app directory and log files
+WORKDIR /var/www/html
 COPY . /var/www/html
 
-WORKDIR /var/www/html
+RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist \
+    && rm -rf bootstrap/cache/*.php \
+    && mkdir -p /var/log/nginx /var/www/html/storage/logs \
+    && touch /var/log/nginx/access.log /var/log/nginx/error.log /var/www/html/storage/logs/laravel.log \
+    && chown -R www-data:www-data /var/www/html /var/log/nginx \
+    && chmod -R 775 storage bootstrap/cache /var/log/nginx
 
-# Install Laravel dependencies
-RUN composer install \
-    --no-dev \
-    --optimize-autoloader \
-    --no-interaction \
-    --prefer-dist
-
-# Remove old cache files
-RUN rm -rf bootstrap/cache/*.php
-
-# Set permissions
-RUN chown -R www-data:www-data /var/www/html \
-    && chmod -R 775 storage bootstrap/cache
-
-# Copy startup script
 COPY start.sh /start.sh
-
 RUN chmod +x /start.sh
-
-# Container health check
-HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost/health || exit 1
 
 EXPOSE 80
 

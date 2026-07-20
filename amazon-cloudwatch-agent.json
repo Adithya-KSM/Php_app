@@ -1,0 +1,36 @@
+{
+  "logs": {
+    "logs_collected": {
+      "files": {
+        "collect_list": [
+          {
+            "file_path": "/var/log/nginx/access.log",
+            "log_group_name": "/ecs/adithya-terraform-php-task-definition",
+            "log_stream_name": "ecs/nginx-access/{instance_id}",
+            "timezone": "UTC"
+          },
+          {
+            "file_path": "/var/log/nginx/error.log",
+            "log_group_name": "/ecs/adithya-terraform-php-task-definition",
+            "log_stream_name": "ecs/nginx-error/{instance_id}",
+            "timezone": "UTC"
+          },
+          {
+            "file_path": "/var/www/html/storage/logs/laravel.log",
+            "log_group_name": "/ecs/adithya-terraform-php-task-definition",
+            "log_stream_name": "ecs/laravel-app/{instance_id}",
+            "timezone": "UTC"
+          },
+          {
+            "file_path": "/var/log/php-fpm.log",
+            "log_group_name": "/ecs/adithya-terraform-php-task-definition",
+            "log_stream_name": "ecs/php-fpm-error/{instance_id}",
+            "timezone": "UTC"
+          }
+        ]
+      }
+    },
+    "log_stream_name": "ecs/default/{instance_id}",
+    "force_flush_interval": 5
+  }
+}
