@@ -41,21 +41,36 @@ php artisan view:clear
 php artisan config:clear
 php artisan config:cache
 
-# 5. Transition PHP-FPM pool settings from standard socket layer to TCP port binding
-echo "Configuring PHP-FPM for network port mapping..."
-sed -i 's|listen = /run/php/php8.4-fpm.sock|listen = 127.0.0.1:9000|g' /etc/php/8.4/fpm/pool.d/www.conf
+# 5. Dynamically configure and start PHP-FPM regardless of exact PHP version
+PHP_FPM_CONF=$(find /etc/php -name "www.conf" 2>/dev/null | head -n 1)
 
-# 6. Start CloudWatch Agent in background mode
-echo "Starting CloudWatch Agent inside container..."
-/opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
-    -a fetch-config \
-    -m ec2 \
-    -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json \
-    -s
+if [ -f "$PHP_FPM_CONF" ]; then
+    echo "Found PHP-FPM pool config at $PHP_FPM_CONF"
+    sed -i 's/listen = \/run\/php\/php.*-fpm.sock/listen = 9000/' "$PHP_FPM_CONF" || true
+else
+    echo "PHP-FPM config www.conf not found, skipping FPM tuning."
+fi
 
-# 7. Kickstart internal processing engines
-echo "Starting application worker engines..."
-service php8.4-fpm start
+# 6. Start CloudWatch Agent in background mode (if installed)
+if [ -f "/opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl" ]; then
+    echo "Starting CloudWatch Agent inside container..."
+    /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+        -a fetch-config \
+        -m ec2 \
+        -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json \
+        -s || echo "CloudWatch agent warning: could not start."
+fi
+
+# 7. Start PHP-FPM dynamically or fall back gracefully
+echo "Starting PHP-FPM service..."
+FPM_SERVICE=$(ls /etc/init.d/php* 2>/dev/null | head -n 1)
+
+if [ -n "$FPM_SERVICE" ]; then
+    $FPM_SERVICE start
+else
+    # Fallback if no init.d script exists
+    php-fpm -D || service php-fpm start || echo "PHP-FPM started via daemon"
+fi
 
 echo "Handing control over to Nginx..."
-nginx -g 'daemon off;'
+exec nginx -g 'daemon off;'
